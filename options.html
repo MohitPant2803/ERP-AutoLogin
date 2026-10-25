@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - IIT KGP ERP 1-Click Login</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <!-- Top Popup Toast for Test Connection and Status Notifications -->
+  <div id="top-popup" class="top-popup hidden" role="alert">
+    <div class="top-popup-content">
+      <span id="top-popup-icon" class="top-popup-icon"></span>
+      <div class="top-popup-text">
+        <div id="top-popup-title" class="top-popup-title">Connection Successful</div>
+        <div id="top-popup-desc" class="top-popup-desc">ERP portal is online and responsive.</div>
+      </div>
+      <button id="top-popup-close" class="top-popup-close" type="button" title="Dismiss">
+        <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="18" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="options-container">
+    <!-- Header -->
+    <header class="options-header">
+      <div class="brand">
+        <img src="icons/icon48.png" alt="IIT KGP" class="brand-logo" />
+        <div>
+          <h1>IIT KGP ERP 1-Click Login</h1>
+          <p class="subtitle">Complete configuration & automated OTP settings</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-header-test" class="btn btn-secondary">
+          <svg class="icon-svg" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Test Connection</span>
+        </button>
+        <button id="btn-save-all" class="btn btn-primary">
+          <svg class="icon-svg" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span id="save-all-text">Save Settings</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="options-grid">
+      <!-- Left Column: Credentials, General Behavior & PIN Security -->
+      <div class="grid-column">
+        <!-- Credentials Section -->
+        <section class="card">
+          <div class="card-title">
+            <span class="icon">
+              <svg class="card-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <h2>ERP Credentials</h2>
+          </div>
+          <p class="card-desc">Your credentials are saved locally in your browser and never sent to any third-party server.</p>
+
+          <div class="form-group">
+            <label for="opt-roll">Roll Number</label>
+            <div class="input-with-button">
+              <input type="text" id="opt-roll" placeholder="e.g. 21CS10001" autocomplete="username" />
+              <button id="opt-btn-fetch-qs" class="btn btn-secondary btn-sm" type="button">
+                <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Fetch Questions</span>
+              </button>
+            </div>
+            <span class="field-hint">Entering your roll number enables auto-retrieval of your 3 registered security questions.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="opt-password">ERP Password</label>
+            <input type="password" id="opt-password" placeholder="Your ERP portal password" autocomplete="current-password" />
+          </div>
+
+          <!-- Security Questions -->
+          <div class="qa-section">
+            <div class="qa-section-header">
+              <span class="qa-title">Registered Security Questions & Answers</span>
+              <span class="badge badge-info">3 Questions</span>
+            </div>
+
+            <div class="qa-group">
+              <label>Question 1</label>
+              <input type="text" id="opt-q1" placeholder="e.g. What is your mother's maiden name?" />
+              <input type="password" id="opt-a1" placeholder="Answer 1" class="qa-answer" />
+            </div>
+
+            <div class="qa-group">
+              <label>Question 2</label>
+              <input type="text" id="opt-q2" placeholder="e.g. What is the name of your first school?" />
+              <input type="password" id="opt-a2" placeholder="Answer 2" class="qa-answer" />
+            </div>
+
+            <div class="qa-group">
+              <label>Question 3</label>
+              <input type="text" id="opt-q3" placeholder="e.g. What is your favourite food?" />
+              <input type="password" id="opt-a3" placeholder="Answer 3" class="qa-answer" />
+            </div>
+          </div>
+        </section>
+
+        <!-- General Behavior & Shortcuts (Positioned on the Left for symmetry) -->
+        <section class="card">
+          <div class="card-title">
+            <span class="icon">
+              <svg class="card-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </span>
+            <h2>General Behavior</h2>
+          </div>
+
+          <div class="toggle-control">
+            <div>
+              <span class="toggle-heading">Auto-Login on Page Visit</span>
+              <p class="toggle-subtext">Automatically start the login flow when navigating to <code>erp.iitkgp.ac.in</code>. When turned off, login only triggers when you click the 1-Click Login button.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="opt-auto-login" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="shortcut-box">
+            <span class="shortcut-text">Quick-Login Keyboard Shortcut:</span>
+            <kbd class="kbd">Alt</kbd> + <kbd class="kbd">Shift</kbd> + <kbd class="kbd">L</kbd>
+          </div>
+        </section>
+
+        <!-- PIN Protection Section -->
+        <section class="card">
+          <div class="card-title">
+            <span class="icon">
+              <svg class="card-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <h2>Encryption & PIN Security (Optional)</h2>
+          </div>
+          <p class="card-desc">Encrypt your password and answers with AES-GCM 256-bit encryption requiring a 4-digit PIN.</p>
+
+          <div class="toggle-control">
+            <div>
+              <span class="toggle-heading">Enable PIN Protection</span>
+              <p class="toggle-subtext">You will be prompted for this PIN before each login.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="opt-toggle-pin" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div id="pin-input-container" class="form-group hidden" style="margin-top: 14px;">
+            <label for="opt-pin">Set 4-Digit Security PIN</label>
+            <input type="password" id="opt-pin" maxlength="6" placeholder="e.g. 1234" style="width: 140px;" />
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: OTP Automation & Backup -->
+      <div class="grid-column">
+        <!-- OTP Automation Options -->
+        <section class="card">
+          <div class="card-title">
+            <span class="icon">
+              <svg class="card-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            <h2>Automated OTP Handling</h2>
+          </div>
+          <p class="card-desc">Configure how the extension automatically captures the 6-digit OTP sent by ERP.</p>
+
+          <!-- Method 1: Webmail Tab Scanner -->
+          <div class="otp-method-card">
+            <div class="toggle-control">
+              <div>
+                <span class="toggle-heading">1. Auto-Scan Open Webmail Tab (Recommended)</span>
+                <p class="toggle-subtext">Silently captures the ERP OTP if Gmail (<code>mail.google.com</code>) or IIT KGP Webmail (<code>iitkgpmail.iitkgp.ac.in</code>) is open in any Chrome tab.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-scan-mail-tabs" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Method 2: Clipboard Auto-Detect -->
+          <div class="otp-method-card">
+            <div class="toggle-control">
+              <div>
+                <span class="toggle-heading">2. Auto-Detect Clipboard Copy</span>
+                <p class="toggle-subtext">If you copy the 6-digit OTP code on your phone or notification, the extension immediately auto-detects, pastes, and submits it.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-scan-clipboard" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Method 3: Local Python Helper (iitkgp-erp-login-pypi) -->
+          <div class="otp-method-card">
+            <div class="toggle-control">
+              <div>
+                <span class="toggle-heading">3. Local Python OTP Helper Server</span>
+                <p class="toggle-subtext">Polls <code>http://127.0.0.1:5000/otp</code> if you run the companion python helper from <code>iitkgp-erp-login</code>.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-use-local-server" />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div id="local-server-settings" class="nested-settings hidden">
+              <div class="form-group">
+                <label for="opt-local-server-url">Helper Server URL</label>
+                <input type="text" id="opt-local-server-url" value="http://127.0.0.1:5000/otp" />
+              </div>
+              <button id="btn-test-local-server" class="btn btn-secondary btn-xs" type="button">Test Server Connection</button>
+            </div>
+          </div>
+
+          <!-- Method 4: Direct Google OAuth & Gmail API -->
+          <div class="otp-method-card" style="border-color: rgba(56, 189, 248, 0.4);">
+            <div class="toggle-control">
+              <div>
+                <span class="toggle-heading">4. Google OAuth & Gmail API (Autonomous OTP)</span>
+                <p class="toggle-subtext">Directly connect your Google account to fetch the ERP OTP via Gmail API in 1 second, exactly like <code>iitkgp-erp-login-pypi</code>.</p>
+              </div>
+              <span id="google-conn-status" class="badge" style="background: rgba(100, 116, 139, 0.3); color: #94a3b8;">Not Connected</span>
+            </div>
+
+            <div id="google-oauth-controls" class="nested-settings" style="display: flex; flex-direction: column; gap: 12px; margin-top: 6px;">
+              <div class="form-group">
+                <label>Extension Redirect URI (Add to Google Cloud Console):</label>
+                <div class="input-with-button">
+                  <input type="text" id="opt-oauth-redirect-uri" readonly style="font-family: monospace; font-size: 11.5px; color: #38bdf8;" />
+                  <button id="btn-copy-redirect-uri" class="btn btn-secondary btn-xs" type="button">
+                    <svg class="icon-svg" viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="opt-google-client-id">OAuth 2.0 Client ID:</label>
+                <input type="text" id="opt-google-client-id" placeholder="e.g. 123456789-xxxxxx.apps.googleusercontent.com" />
+              </div>
+
+              <div class="form-group">
+                <label for="opt-google-client-secret">OAuth 2.0 Client Secret (Optional for Web):</label>
+                <input type="password" id="opt-google-client-secret" placeholder="e.g. GOCSPX-xxxxxx" />
+              </div>
+
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="btn-connect-google" class="btn btn-primary btn-sm" type="button">
+                  <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-3 3L11 12l-7 7a2 2 0 0 0 0 3 2 2 0 0 0 3 0l7-7 1.5 1.5 3-3-1.5-1.5 3.5-3.5a2 2 0 0 0 0-2.83l-1.67-1.67a2 2 0 0 0-2.83 0z"/></svg>
+                  <span>Connect with Google</span>
+                </button>
+                <button id="btn-import-token-json" class="btn btn-secondary btn-sm" type="button">
+                  <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Import JSON Token</span>
+                </button>
+                <input type="file" id="file-token-json" accept=".json" class="hidden" />
+                <button id="btn-test-gmail-api" class="btn btn-secondary btn-sm" type="button">
+                  <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                  <span>Test Gmail</span>
+                </button>
+                <button id="btn-disconnect-google" class="btn btn-danger btn-sm hidden" type="button">
+                  Disconnect
+                </button>
+              </div>
+              <div id="gmail-test-result" style="font-size: 12px; line-height: 1.4;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Backup & Diagnostics -->
+        <section class="card">
+          <div class="card-title">
+            <span class="icon">
+              <svg class="card-icon-svg" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            </span>
+            <h2>Backup & Diagnostics</h2>
+          </div>
+          <div class="diagnostics-actions">
+            <button id="btn-export-creds" class="btn btn-secondary btn-sm">
+              <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Export</span>
+            </button>
+            <button id="btn-import-creds" class="btn btn-secondary btn-sm">
+              <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Import</span>
+            </button>
+            <input type="file" id="file-import-input" accept=".json" class="hidden" />
+            <button id="btn-clear-sessions-opt" class="btn btn-danger btn-sm">
+              <svg class="icon-svg" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Clear Sessions</span>
+            </button>
+          </div>
+          <div id="diagnostics-log" class="diagnostics-log hidden"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="crypto-util.js"></script>
+  <script src="erp-api.js"></script>
+  <script src="gmail-otp.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

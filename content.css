@@ -1,0 +1,283 @@
+/* IIT KGP ERP 1-Click Login Injected Overlay Styles */
+
+#erp-auto-login-card {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.15);
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  z-index: 2147483647;
+  padding: 18px;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: erpSlideIn 0.35s ease-out;
+}
+
+#erp-auto-login-card * {
+  box-sizing: border-box !important;
+}
+
+@keyframes erpSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.erp-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.erp-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: -0.2px;
+}
+
+.erp-card-title span.icon,
+.erp-card-title .icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.erp-btn .icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.erp-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.erp-status-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30, 41, 59, 0.8);
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 14px;
+}
+
+.erp-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(56, 189, 248, 0.2);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: erpSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes erpSpin {
+  to { transform: rotate(360deg); }
+}
+
+.erp-status-text {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.erp-status-text strong {
+  color: #f1f5f9;
+}
+
+.erp-otp-section {
+  display: none;
+  margin-top: 10px;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.erp-otp-input-group {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  margin-bottom: 10px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.erp-otp-field {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  background: #0f172a !important;
+  border: 1.5px solid #38bdf8 !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: 4px !important;
+  text-align: center !important;
+  color: #38bdf8 !important;
+  outline: none !important;
+  height: 40px !important;
+  line-height: normal !important;
+  margin: 0 !important;
+  transition: all 0.2s ease;
+}
+
+.erp-otp-field:focus {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3) !important;
+}
+
+#erp-paste-btn {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  height: 40px !important;
+  padding: 0 16px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+}
+
+#erp-submit-otp-btn {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: 42px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+}
+
+.erp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.erp-btn-primary {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.erp-btn-primary:hover {
+  background: linear-gradient(135deg, #0369a1, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+.erp-btn-secondary {
+  background: rgba(51, 65, 85, 0.8);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.erp-btn-secondary:hover {
+  background: rgba(71, 85, 105, 0.9);
+}
+
+.erp-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.erp-link-btn {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.erp-link-btn:hover {
+  color: #7dd3fc;
+}
+
+/* Success glow */
+.erp-card-success {
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 25px rgba(34, 197, 94, 0.25) !important;
+}
+
+.erp-card-error {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 25px rgba(239, 68, 68, 0.25) !important;
+}
+
+/* Strictly hide any eye / password reveal buttons across ERP portal and overlay */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.toggle-password,
+.show-password,
+.pwd-toggle,
+.eye-icon,
+[id*="toggle-password"],
+[id*="togglePassword"],
+[id*="toggle-pwd"],
+[class*="toggle-password"],
+[class*="togglePassword"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
