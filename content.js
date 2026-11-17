@@ -530,16 +530,10 @@
       }
     } catch {}
 
-    // Page-world SweetAlert dismissal
-    try {
-      const pageScript = document.createElement('script');
-      pageScript.textContent = 'if (window.Swal && typeof window.Swal.close === "function") { window.Swal.close(); }';
-      (document.head || document.documentElement).appendChild(pageScript);
-      pageScript.remove();
-    } catch {}
-
-    const swalConfirm = document.querySelector('.swal2-confirm');
-    if (swalConfirm) swalConfirm.click();
+    const swalConfirm = document.querySelector('.swal2-confirm, .swal2-close');
+    if (swalConfirm) {
+      try { swalConfirm.click(); } catch {}
+    }
 
     document.querySelectorAll('.swal2-container, .swal2-backdrop').forEach((el) => {
       try { el.remove(); } catch {}
@@ -637,44 +631,23 @@
     }
     if (answerInput) answerInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // 6. INSTANT SUBMISSION: Execute immediately without waiting
+    // 6. INSTANT SUBMISSION: Clean DOM execution without CSP-violating inline scripts
     const submitBtn = document.getElementById('loginFormSubmitButton');
     const form = document.getElementById('loginForm') || document.querySelector('form[action*="auth.htm"]');
 
     if (submitBtn) {
       submitBtn.classList.remove('d-none', 'hidden');
       submitBtn.removeAttribute('disabled');
-    }
-
-    // Channel A: Page-world execution of ERP's $("#loginForm").submit()
-    try {
-      const pageScript = document.createElement('script');
-      pageScript.textContent = `
-        try {
-          if (window.Swal && typeof window.Swal.close === 'function') window.Swal.close();
-          if (window.$ && $("#loginForm").length) {
-            $("#loginForm").submit();
-          } else {
-            document.getElementById('loginForm')?.submit();
-          }
-        } catch (e) {
-          document.getElementById('loginForm')?.submit();
-        }
-      `;
-      (document.head || document.documentElement).appendChild(pageScript);
-      pageScript.remove();
-    } catch {}
-
-    // Channel B: Native DOM form submit
-    try {
-      if (form) {
-        HTMLFormElement.prototype.submit.call(form);
+      submitBtn.disabled = false;
+      try {
+        submitBtn.click();
+      } catch (e) {
+        if (form) form.submit();
       }
-    } catch {}
-
-    // Channel C: Button click
-    if (submitBtn) {
-      try { submitBtn.click(); } catch {}
+    } else if (form) {
+      try {
+        form.submit();
+      } catch (e) {}
     }
 
     // Watch for "previous session is still active" error on page
