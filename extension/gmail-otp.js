@@ -298,18 +298,38 @@ const GmailOtp = {
 
       extractParts(msgData.payload);
 
-      // Extract 6-digit OTP code (prioritize "is 123456" or "OTP: 123456")
-      const explicitMatch = textContent.match(/(?:OTP|password|code|is)[\s\:\-is]+(\d{6})\b/i);
-      if (explicitMatch && explicitMatch[1]) {
-        console.log(`[GmailOtp] Extracted fresh OTP: ${explicitMatch[1]} (Message ID: ${latestMsgId})`);
-        return explicitMatch[1];
+      // Clean HTML tags and decode entities
+      const cleanContent = textContent
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Precision ERP OTP extractor:
+      // Pattern 1: "Your OTP for Sign In into ERP Portal is 123456" or "OTP is 123456" or "OTP: 123456"
+      const strictMatch = cleanContent.match(/(?:OTP[\s\S]{1,60}?is|OTP[\s\:\-]+|code[\s\:\-is]+)\s*(\d{6})\b/i);
+      if (strictMatch && strictMatch[1] && strictMatch[1] !== '721302') {
+        console.log(`[GmailOtp] Extracted fresh OTP (••••••) from Message ID: ${latestMsgId}`);
+        return strictMatch[1];
       }
 
-      const allDigits = textContent.match(/\b\d{6}\b/g);
-      if (allDigits && allDigits.length > 0) {
-        const code = allDigits[allDigits.length - 1];
-        console.log(`[GmailOtp] Extracted fresh OTP (regex): ${code} (Message ID: ${latestMsgId})`);
-        return code;
+      // Pattern 2: "... is 123456. Valid for 10 minutes"
+      const validForMatch = cleanContent.match(/\bis\s+(\d{6})\b[^\d]{1,25}valid\s+for/i);
+      if (validForMatch && validForMatch[1] && validForMatch[1] !== '721302') {
+        console.log(`[GmailOtp] Extracted fresh OTP (••••••) via validity format from Message ID: ${latestMsgId}`);
+        return validForMatch[1];
+      }
+
+      // Pattern 3: Fallback - find all 6-digit numbers, strictly blacklist Kharagpur postal PIN 721302,
+      // and pick the FIRST one (index 0) because OTP appears at the top of the email, not the footer!
+      const allDigits = cleanContent.match(/\b\d{6}\b/g) || [];
+      const candidates = allDigits.filter(code => code !== '721302');
+      if (candidates.length > 0) {
+        console.log(`[GmailOtp] Extracted fresh OTP (••••••) via first candidate from Message ID: ${latestMsgId}`);
+        return candidates[0];
       }
 
       return null;

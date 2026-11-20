@@ -57,11 +57,29 @@
       }
     }
 
+    // Helper to verify if row text is genuinely an ERP OTP email
+    const isErpOtpRow = (text) => {
+      if (!text) return false;
+      return text.includes("OTP for Sign In") ||
+        (text.includes("OTP") && (text.includes("ERP") || text.includes("Sign In")));
+    };
+
+    // Try finding specific email row or preview containers
+    // 1. Gmail selectors
+    const gmailRows = document.querySelectorAll('tr.zA, div[role="main"] div[role="listitem"], .y6, .y2');
+    for (const row of gmailRows) {
+      const text = row.innerText || '';
+      if (isErpOtpRow(text)) {
+        const otp = parseOtpFromText(text);
+        if (otp) return otp;
+      }
+    }
+
     // 2. Zimbra (iitkgpmail) selectors
     const zimbraRows = document.querySelectorAll('.Row, .MsgList, #zv__CLV__Body, [id*="MsgBody"]');
     for (const row of zimbraRows) {
       const text = row.innerText || '';
-      if (text.includes("OTP for Sign In") || text.includes("IIT Kharagpur")) {
+      if (isErpOtpRow(text)) {
         const otp = parseOtpFromText(text);
         if (otp) return otp;
       }
@@ -84,7 +102,7 @@
     let currentNode;
     while ((currentNode = treeWalker.nextNode())) {
       const text = currentNode.parentElement ? currentNode.parentElement.innerText : currentNode.nodeValue;
-      if (text.includes("Sign In") || text.includes("Kharagpur")) {
+      if (isErpOtpRow(text)) {
         const otp = parseOtpFromText(text);
         if (otp) return otp;
       }
@@ -99,17 +117,31 @@
   function parseOtpFromText(text) {
     if (!text) return null;
 
-    // Pattern 1: "OTP is 123456" or "OTP: 123456" or "code is 123456"
-    const explicitMatch = text.match(/(?:OTP|code|password)[\s\:\-is]+(\d{6})\b/i);
-    if (explicitMatch && explicitMatch[1]) {
-      return explicitMatch[1];
+    const clean = text
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Pattern 1: "Your OTP for Sign In into ERP Portal is 123456" or "OTP is 123456" or "OTP: 123456"
+    const strictMatch = clean.match(/(?:OTP[\s\S]{1,60}?is|OTP[\s\:\-]+|code[\s\:\-is]+)\s*(\d{6})\b/i);
+    if (strictMatch && strictMatch[1] && strictMatch[1] !== '721302') {
+      return strictMatch[1];
     }
 
-    // Pattern 2: Find all 6-digit numbers in text that mentions ERP or IIT Kharagpur
-    const matches = text.match(/\b\d{6}\b/g);
-    if (matches && matches.length > 0) {
-      // The OTP is usually the last 6-digit number in the notification/email
-      return matches[matches.length - 1];
+    // Pattern 2: "... is 123456. Valid for 10 minutes"
+    const validForMatch = clean.match(/\bis\s+(\d{6})\b[^\d]{1,25}valid\s+for/i);
+    if (validForMatch && validForMatch[1] && validForMatch[1] !== '721302') {
+      return validForMatch[1];
+    }
+
+    // Pattern 3: Fallback - find 6-digit numbers, filter out Kharagpur PIN 721302,
+    // and take the FIRST one (index 0) because OTP is near the top of the email
+    const allDigits = clean.match(/\b\d{6}\b/g) || [];
+    const candidates = allDigits.filter(code => code !== '721302');
+    if (candidates.length > 0) {
+      return candidates[0];
     }
 
     return null;

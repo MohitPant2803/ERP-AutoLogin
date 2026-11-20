@@ -334,11 +334,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const text = await navigator.clipboard.readText();
       const match = text.match(/\b\d{6}\b/);
-      if (match) {
+      if (match && match[0] !== '721302') {
         popupOtpInput.value = match[0];
         submitOtp(match[0]);
       } else {
-        alert('No 6-digit OTP found in clipboard');
+        alert('No valid 6-digit OTP found in clipboard');
       }
     } catch {
       alert('Clipboard access denied');
@@ -352,14 +352,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   popupOtpInput.addEventListener('input', (e) => {
     const val = e.target.value.replace(/\D/g, '');
     e.target.value = val;
-    if (val.length === 6) {
+    if (val.length === 6 && val !== '721302') {
       submitOtp(val);
     }
   });
 
   function submitOtp(val) {
     const code = (val || '').trim();
-    if (!/^\d{6}$/.test(code)) {
+    if (!/^\d{6}$/.test(code) || code === '721302') {
       alert('Please enter a valid 6-digit OTP');
       return;
     }

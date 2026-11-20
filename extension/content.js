@@ -103,6 +103,12 @@
 
     renderCard(creds.rollNumber, creds);
 
+    // 0. Save sessionToken to sessionStorage whenever present in URL
+    const urlToken = new URLSearchParams(window.location.search).get('sessionToken');
+    if (urlToken) {
+      sessionStorage.setItem('erp_session_token', urlToken);
+    }
+
     // 1. If user explicitly logged out, PAUSE auto-login so they aren't trapped in a loop
     if (isLogoutPage()) {
       console.log('ERP 1-Click Login: User logged out. Auto-login paused.');
@@ -119,15 +125,39 @@
       return;
     }
 
-    // 3. Check if the page already has an OTP mismatch error from previous submit
+    // 3. Check if the page contains an active session error from a previous attempt
     const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
-    if (bodyText.includes('otp mismatch') || bodyText.includes('invalid otp')) {
-      updateStatus('Previous OTP mismatch. Click Resend OTP or enter code.', true);
+    if (bodyText.includes('previous session is still active') || bodyText.includes('session is active')) {
+      console.log('[ERP Content] Active session detected on page load. Auto-clearing sessions...');
+      updateStatus('Previous session was active! Auto-clearing sessions...', false);
+      ErpApi.clearAllSessions(creds.rollNumber).then(() => {
+        updateStatus('Sessions cleared! Re-starting clean login...', false);
+        sessionStorage.removeItem('erp_otp_requested_time');
+        setTimeout(() => {
+          window.location.href = window.location.origin + '/IIT_ERP3/';
+        }, 600);
+      });
+      return;
+    }
+
+    // 4. Check if we landed on auth.htm (indicates previous submission was rejected by ERP)
+    if (window.location.pathname.includes('auth.htm')) {
+      console.warn('[ERP Content] Landed on auth.htm: Previous OTP or login rejected.');
+      updateStatus('Previous OTP was invalid or expired. Please enter new OTP.', true, false);
+      showManualLoginButton();
       if (otpSectionElem) otpSectionElem.style.display = 'block';
       return;
     }
 
-    // 4. Normal auto-login flow
+    // 5. Check if the page already has an OTP mismatch error from previous submit
+    if (bodyText.includes('otp mismatch') || bodyText.includes('invalid otp')) {
+      updateStatus('Previous OTP mismatch. Click Resend OTP or enter code.', true, false);
+      showManualLoginButton();
+      if (otpSectionElem) otpSectionElem.style.display = 'block';
+      return;
+    }
+
+    // 6. Normal auto-login flow
     startInPageLogin(creds);
   }
 
@@ -212,10 +242,10 @@
         try {
           const text = await navigator.clipboard.readText();
           const match = text.match(/\b\d{6}\b/);
-          if (match) {
+          if (match && match[0] !== '721302') {
             handleOtpFound(match[0]);
           } else {
-            updateStatus('No 6-digit OTP found in clipboard');
+            updateStatus('No valid 6-digit OTP found in clipboard');
           }
         } catch {
           updateStatus('Clipboard access denied');
@@ -275,6 +305,9 @@
    */
   async function startInPageLogin(creds) {
     try {
+      updateStatus('Checking active sessions...');
+      await ErpApi.clearAllSessions(creds.rollNumber);
+
       updateStatus('Filling Roll Number...');
 
       let password = creds.password;
@@ -494,10 +527,50 @@
         getOtpBtn.click();
       }
 
-      // Automatically dismiss any SweetAlert popup that appears
-      dismissSweetAlert();
-      const swalDismissTimer = setInterval(dismissSweetAlert, 200);
-      setTimeout(() => clearInterval(swalDismissTimer), 3500);
+      // Intercept and handle ERP SweetAlert responses intelligently
+      const swalCheckInterval = setInterval(async () => {
+        const swalElem = document.querySelector('.swal2-container');
+        if (!swalElem) return;
+
+        const htmlElem = document.querySelector('.swal2-html-container') || document.querySelector('#swal2-content') || document.querySelector('.swal2-content');
+        const titleElem = document.querySelector('.swal2-title');
+        const fullText = `${titleElem ? titleElem.innerText : ''} ${htmlElem ? htmlElem.innerText : ''}`.trim().toLowerCase();
+
+        if (fullText) {
+          if (fullText.includes('previous session is still active') || fullText.includes('session is active')) {
+            clearInterval(swalCheckInterval);
+            dismissSweetAlert();
+            updateStatus('Previous ERP session was active! Auto-clearing sessions...', false);
+            await ErpApi.clearAllSessions(rollNumber);
+            updateStatus('Sessions cleared! Retrying OTP request...', false);
+            setTimeout(() => triggerOtpRequest(rollNumber, password, answer), 800);
+            return;
+          }
+          if (fullText.includes('answare mismatch') || fullText.includes('answer mismatch')) {
+            clearInterval(swalCheckInterval);
+            dismissSweetAlert();
+            updateStatus('Security Answer Mismatch! Please update your security answers in extension options.', true);
+            return;
+          }
+          if (fullText.includes('password mismatch')) {
+            clearInterval(swalCheckInterval);
+            dismissSweetAlert();
+            updateStatus('ERP Password Mismatch! Please update your password in extension options.', true);
+            return;
+          }
+          if (fullText.includes('an otp') || fullText.includes('sent') || fullText.includes('success')) {
+            clearInterval(swalCheckInterval);
+            dismissSweetAlert();
+            updateStatus('OTP sent to email! Listening to Gmail...');
+            return;
+          }
+        }
+      }, 200);
+
+      setTimeout(() => {
+        clearInterval(swalCheckInterval);
+        dismissSweetAlert();
+      }, 4000);
 
       // Ensure fields become editable immediately
       if (emailOtpInput) {
@@ -566,7 +639,21 @@
   /**
    * Silently monitors clipboard for 6-digit OTP copied by the user
    */
-  function watchClipboardForOtp() {
+  async function watchClipboardForOtp() {
+    try {
+      const stored = await chrome.storage.local.get(['otpSettings']);
+      if (stored.otpSettings && stored.otpSettings.scanClipboard === false) {
+        return;
+      }
+    } catch {}
+
+    let initialClipboard = '';
+    try {
+      if (document.hasFocus()) {
+        initialClipboard = await navigator.clipboard.readText();
+      }
+    } catch {}
+
     const interval = setInterval(async () => {
       if (isSubmitting) {
         clearInterval(interval);
@@ -575,10 +662,12 @@
       try {
         if (document.hasFocus()) {
           const text = await navigator.clipboard.readText();
-          const match = text.match(/\b\d{6}\b/);
-          if (match && !isSubmitting) {
-            clearInterval(interval);
-            handleOtpFound(match[0]);
+          if (text && text !== initialClipboard) {
+            const match = text.match(/\b\d{6}\b/);
+            if (match && match[0] !== '721302' && !isSubmitting) {
+              clearInterval(interval);
+              handleOtpFound(match[0]);
+            }
           }
         }
       } catch {}
@@ -586,21 +675,27 @@
   }
 
   /**
-   * Submits the OTP into the ERP login form INSTANTANEOUSLY (0ms delay)
+   * Submits the OTP into the ERP login form cleanly and reliably
    */
   async function handleOtpFound(otp) {
+    const cleanOtp = (otp || '').trim();
+    if (!cleanOtp || cleanOtp === '721302' || !/^\d{6}$/.test(cleanOtp)) {
+      console.warn('[ERP Content] Ignored invalid OTP candidate:', cleanOtp);
+      return;
+    }
+
     if (isSubmitting) return;
     isSubmitting = true;
     if (countdownTimer) clearInterval(countdownTimer);
     sessionStorage.removeItem('erp_otp_requested_time');
 
-    updateStatus('Auto-filling OTP (••••••) & logging in...', false, true);
+    updateStatus('Submitting OTP (••••••)...', false, false);
 
     // 1. Instantly eliminate SweetAlert
     dismissSweetAlert();
 
     // 2. Fill into the floating overlay field
-    if (otpInputElem) otpInputElem.value = otp;
+    if (otpInputElem) otpInputElem.value = cleanOtp;
 
     // 3. Fill into the actual ERP form input (#email_otp1) with type="password" to keep code hidden
     const pageOtpInput = document.getElementById('email_otp1');
@@ -608,7 +703,7 @@
       pageOtpInput.readOnly = false;
       pageOtpInput.removeAttribute('readonly');
       pageOtpInput.type = 'password';
-      pageOtpInput.value = otp;
+      pageOtpInput.value = cleanOtp;
       pageOtpInput.dispatchEvent(new Event('input', { bubbles: true }));
       pageOtpInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -616,7 +711,7 @@
     // 4. Ensure sessionToken is present in form
     const sessionTokenInput = document.getElementById('sessionToken');
     if (sessionTokenInput && !sessionTokenInput.value) {
-      const urlToken = new URLSearchParams(window.location.search).get('sessionToken');
+      const urlToken = new URLSearchParams(window.location.search).get('sessionToken') || sessionStorage.getItem('erp_session_token');
       if (urlToken) sessionTokenInput.value = urlToken;
     }
 
@@ -635,6 +730,11 @@
     const submitBtn = document.getElementById('loginFormSubmitButton');
     const form = document.getElementById('loginForm') || document.querySelector('form[action*="auth.htm"]');
 
+    if (form) {
+      // Force explicit absolute SSO endpoint so relative action never targets /IIT_ERP3/auth.htm
+      form.action = window.location.origin + '/SSOAdministration/auth.htm';
+    }
+
     if (submitBtn) {
       submitBtn.classList.remove('d-none', 'hidden');
       submitBtn.removeAttribute('disabled');
@@ -650,29 +750,43 @@
       } catch (e) {}
     }
 
+    // Fallback: if form didn't navigate after 300ms, trigger form.submit()
+    setTimeout(() => {
+      const currentUrl = window.location.href;
+      if (form && (currentUrl.includes('login.htm') || currentUrl.includes('IIT_ERP3'))) {
+        try { form.submit(); } catch {}
+      }
+    }, 350);
+
     // Watch for "previous session is still active" error on page
-    watchForActiveSessionError();
+    watchForActiveSessionError(currentCreds ? currentCreds.rollNumber : '');
   }
 
   /**
    * Detects "previous session is still active" and auto-recovers
    */
-  function watchForActiveSessionError() {
-    setTimeout(async () => {
+  function watchForActiveSessionError(rollNumber) {
+    let checkCount = 0;
+    const interval = setInterval(async () => {
+      checkCount++;
       const pageText = document.body ? document.body.innerText.toLowerCase() : '';
-      if (pageText.includes('previous session is still active')) {
-        updateStatus('Previous session was active! Auto-clearing and retrying...');
-        const userElem = document.getElementById('user_id');
-        const roll = userElem ? userElem.value : '';
+      if (pageText.includes('previous session is still active') || pageText.includes('session is active')) {
+        clearInterval(interval);
+        updateStatus('Previous session was active! Auto-clearing sessions and retrying...');
+        const roll = rollNumber || (document.getElementById('user_id')?.value) || '';
         if (roll) {
           await ErpApi.clearAllSessions(roll);
           setTimeout(() => {
             const submitBtn = document.getElementById('loginFormSubmitButton');
+            const form = document.getElementById('loginForm');
             if (submitBtn) submitBtn.click();
+            else if (form) form.submit();
           }, 800);
         }
+      } else if (checkCount >= 10) {
+        clearInterval(interval);
       }
-    }, 1500);
+    }, 500);
   }
 
   // Listen for messages from background or popup

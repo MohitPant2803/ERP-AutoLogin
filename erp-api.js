@@ -222,15 +222,24 @@ const ErpApi = {
       }
     }
 
-    // 2. Substring or fuzzy contains match
+    // 2. High-confidence substring match (prioritizing longest matching question)
+    let bestMatch = null;
+    let maxMatchLen = 0;
+
     for (const pair of qaPairs) {
       const normSaved = this.normalizeText(pair.question);
-      if (normCurrent.includes(normSaved) || normSaved.includes(normCurrent)) {
-        return pair.answer;
+      if (normSaved.length >= 6) {
+        if (normCurrent.includes(normSaved) || normSaved.includes(normCurrent)) {
+          const matchLen = Math.min(normSaved.length, normCurrent.length);
+          if (matchLen > maxMatchLen) {
+            maxMatchLen = matchLen;
+            bestMatch = pair.answer;
+          }
+        }
       }
     }
 
-    return null;
+    return bestMatch;
   },
 
   /**

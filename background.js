@@ -40,7 +40,7 @@ function extractOtpFromAtomXml(xmlText, minTimestamp = 0) {
   if (!xmlText) return null;
   const entryMatches = xmlText.match(/<entry>[\s\S]*?<\/entry>/gi) || [];
   for (const entry of entryMatches) {
-    if (entry.includes("OTP for Sign In") || entry.includes("IIT Kharagpur") || entry.includes("ERP")) {
+    if (entry.includes("OTP for Sign In") || (entry.includes("OTP") && (entry.includes("ERP") || entry.includes("IIT Kharagpur")))) {
       // Strictly ignore emails issued before this login request started
       if (minTimestamp > 0) {
         const dateMatch = entry.match(/<(?:issued|updated|modified)>([\s\S]*?)<\/(?:issued|updated|modified)>/i);
@@ -55,11 +55,29 @@ function extractOtpFromAtomXml(xmlText, minTimestamp = 0) {
 
       const summaryMatch = entry.match(/<summary>([\s\S]*?)<\/summary>/i);
       const titleMatch = entry.match(/<title>([\s\S]*?)<\/title>/i);
-      const text = `${titleMatch ? titleMatch[1] : ''} ${summaryMatch ? summaryMatch[1] : ''}`;
+      const rawText = `${titleMatch ? titleMatch[1] : ''} ${summaryMatch ? summaryMatch[1] : ''}`;
 
-      const otpMatch = text.match(/(?:OTP|password|code|is)[\s\:\-is]+(\d{6})\b/i) || text.match(/\b\d{6}\b/);
-      if (otpMatch) {
-        return otpMatch[1] || otpMatch[0];
+      const cleanText = rawText
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Precision ERP OTP pattern
+      const strictMatch = cleanText.match(/(?:OTP[\s\S]{1,60}?is|OTP[\s\:\-]+|code[\s\:\-is]+)\s*(\d{6})\b/i);
+      if (strictMatch && strictMatch[1] && strictMatch[1] !== '721302') {
+        return strictMatch[1];
+      }
+
+      const validForMatch = cleanText.match(/\bis\s+(\d{6})\b[^\d]{1,25}valid\s+for/i);
+      if (validForMatch && validForMatch[1] && validForMatch[1] !== '721302') {
+        return validForMatch[1];
+      }
+
+      const allDigits = cleanText.match(/\b\d{6}\b/g) || [];
+      const candidates = allDigits.filter(c => c !== '721302');
+      if (candidates.length > 0) {
+        return candidates[0];
       }
     }
   }
@@ -106,7 +124,13 @@ let activeErpTabId = null;
  * Broadcasts an OTP found event to all ERP tabs and runtime listeners
  */
 function broadcastOtpFound(otp, source = 'automated-listener') {
-  console.log(`[ERP 1-Click] OTP Found (${otp}) from ${source}`);
+  const cleanOtp = (otp || '').trim();
+  if (!cleanOtp || cleanOtp === '721302' || !/^\d{6}$/.test(cleanOtp)) {
+    console.warn(`[Background] Ignored invalid OTP candidate from ${source}`);
+    return;
+  }
+
+  console.log(`[ERP 1-Click] Valid OTP (••••••) captured from ${source}`);
 
   if (activeOtpWatchTimer) {
     clearInterval(activeOtpWatchTimer);
@@ -326,7 +350,7 @@ async function performOneClickLogin(pin = null) {
     });
 
     // Authenticate
-    updateLoginState('signing_in', `Authenticating with OTP (${otp})...`);
+    updateLoginState('signing_in', 'Authenticating with OTP (••••••)...');
     const signinResult = await ErpApi.signIn(
       creds.rollNumber,
       password,
