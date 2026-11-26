@@ -274,6 +274,20 @@
       });
     }
 
+    // Direct listener on native ERP page OTP input as well
+    const attachPageOtpListener = () => {
+      const pageOtpInputs = document.querySelectorAll('#email_otp1, input[name="email_otp"], input[id*="email_otp"]');
+      pageOtpInputs.forEach((input) => {
+        input.addEventListener('input', (e) => {
+          const val = e.target.value.replace(/\D/g, '');
+          if (val.length === 6 && val !== '721302') {
+            handleOtpFound(val);
+          }
+        });
+      });
+    };
+    attachPageOtpListener();
+
     // Clear sessions link
     const clearBtn = document.getElementById('erp-clear-sessions-btn');
     if (clearBtn) {
@@ -697,15 +711,57 @@
     // 2. Fill into the floating overlay field
     if (otpInputElem) otpInputElem.value = cleanOtp;
 
-    // 3. Fill into the actual ERP form input (#email_otp1) with type="password" to keep code hidden
-    const pageOtpInput = document.getElementById('email_otp1');
-    if (pageOtpInput) {
-      pageOtpInput.readOnly = false;
-      pageOtpInput.removeAttribute('readonly');
-      pageOtpInput.type = 'password';
-      pageOtpInput.value = cleanOtp;
-      pageOtpInput.dispatchEvent(new Event('input', { bubbles: true }));
-      pageOtpInput.dispatchEvent(new Event('change', { bubbles: true }));
+    // 3. Fill into all actual ERP form inputs (#email_otp1, input[name="email_otp"])
+    const pageOtpInputs = document.querySelectorAll('#email_otp1, input[name="email_otp"], input[id*="email_otp"]');
+    pageOtpInputs.forEach((input) => {
+      input.readOnly = false;
+      input.removeAttribute('readonly');
+      input.type = 'password';
+      input.value = cleanOtp;
+      input.setAttribute('value', cleanOtp);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true }));
+    });
+
+    const form = document.getElementById('loginForm') || document.querySelector('form[action*="auth.htm"]') || document.querySelector('form');
+    if (form) {
+      // Force explicit absolute SSO endpoint so relative action never targets /IIT_ERP3/auth.htm
+      form.action = window.location.origin + '/SSOAdministration/auth.htm';
+
+      // Ensure form has input named email_otp
+      let hiddenOtp = form.querySelector('input[name="email_otp"]');
+      if (!hiddenOtp) {
+        hiddenOtp = document.createElement('input');
+        hiddenOtp.type = 'hidden';
+        hiddenOtp.name = 'email_otp';
+        form.appendChild(hiddenOtp);
+      }
+      hiddenOtp.value = cleanOtp;
+
+      // Ensure form has typeee='SI'
+      let typeeeInput = document.getElementById('typeee') || form.querySelector('input[name="typeee"]');
+      if (!typeeeInput) {
+        typeeeInput = document.createElement('input');
+        typeeeInput.type = 'hidden';
+        typeeeInput.name = 'typeee';
+        typeeeInput.id = 'typeee';
+        form.appendChild(typeeeInput);
+      }
+      typeeeInput.value = 'SI';
+
+      // Ensure form has requestedUrl
+      let reqUrlInput = document.getElementById('requestedUrl') || form.querySelector('input[name="requestedUrl"]');
+      if (!reqUrlInput) {
+        reqUrlInput = document.createElement('input');
+        reqUrlInput.type = 'hidden';
+        reqUrlInput.name = 'requestedUrl';
+        reqUrlInput.id = 'requestedUrl';
+        form.appendChild(reqUrlInput);
+      }
+      if (!reqUrlInput.value) {
+        reqUrlInput.value = window.location.origin + '/IIT_ERP3/';
+      }
     }
 
     // 4. Ensure sessionToken is present in form
@@ -726,14 +782,11 @@
     }
     if (answerInput) answerInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // 6. INSTANT SUBMISSION: Clean DOM execution without CSP-violating inline scripts
-    const submitBtn = document.getElementById('loginFormSubmitButton');
-    const form = document.getElementById('loginForm') || document.querySelector('form[action*="auth.htm"]');
+    // 6. SUBMISSION: Settle DOM events and trigger clean single submission
+    await new Promise(r => setTimeout(r, 120));
 
-    if (form) {
-      // Force explicit absolute SSO endpoint so relative action never targets /IIT_ERP3/auth.htm
-      form.action = window.location.origin + '/SSOAdministration/auth.htm';
-    }
+    const submitBtn = document.getElementById('loginFormSubmitButton');
+    let submitted = false;
 
     if (submitBtn) {
       submitBtn.classList.remove('d-none', 'hidden');
@@ -741,24 +794,34 @@
       submitBtn.disabled = false;
       try {
         submitBtn.click();
+        submitted = true;
       } catch (e) {
-        if (form) form.submit();
+        console.warn('[ERP Content] submitBtn.click() error, falling back to form.submit()', e);
       }
-    } else if (form) {
-      try {
-        form.submit();
-      } catch (e) {}
     }
 
-    // Fallback: if form didn't navigate after 300ms, trigger form.submit()
+    if (!submitted && form) {
+      try {
+        form.submit();
+        submitted = true;
+      } catch (e) {
+        console.error('[ERP Content] form.submit() error', e);
+      }
+    }
+
+    // Safe fallback: only if page didn't navigate after 4 seconds and no error shown
     setTimeout(() => {
       const currentUrl = window.location.href;
       if (form && (currentUrl.includes('login.htm') || currentUrl.includes('IIT_ERP3'))) {
-        try { form.submit(); } catch {}
+        const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+        if (!bodyText.includes('session is active') && !bodyText.includes('previous session')) {
+          console.log('[ERP Content] Page did not navigate after 4s; attempting fallback submit...');
+          try { form.submit(); } catch {}
+        }
       }
-    }, 350);
+    }, 4000);
 
-    // Watch for "previous session is still active" error on page
+    // Watch for "previous session is still active" error on page or in modal
     watchForActiveSessionError(currentCreds ? currentCreds.rollNumber : '');
   }
 
@@ -767,26 +830,49 @@
    */
   function watchForActiveSessionError(rollNumber) {
     let checkCount = 0;
+    let handled = false;
     const interval = setInterval(async () => {
       checkCount++;
-      const pageText = document.body ? document.body.innerText.toLowerCase() : '';
-      if (pageText.includes('previous session is still active') || pageText.includes('session is active')) {
+      if (handled) {
         clearInterval(interval);
-        updateStatus('Previous session was active! Auto-clearing sessions and retrying...');
+        return;
+      }
+      const pageText = document.body ? document.body.innerText.toLowerCase() : '';
+      const swalElem = document.querySelector('.swal2-container, .swal2-html-container, div[role="dialog"]');
+      const swalText = swalElem ? swalElem.innerText.toLowerCase() : '';
+      const fullText = `${pageText} ${swalText}`;
+
+      const isSessionActive = fullText.includes('previous session is still active') ||
+                              fullText.includes('session is active') ||
+                              fullText.includes('session is still active') ||
+                              fullText.includes('already logged in') ||
+                              fullText.includes('active session');
+
+      if (isSessionActive) {
+        handled = true;
+        clearInterval(interval);
+        dismissSweetAlert();
+        updateStatus('Previous session was active! Auto-clearing sessions and logging in...', false);
         const roll = rollNumber || (document.getElementById('user_id')?.value) || '';
         if (roll) {
           await ErpApi.clearAllSessions(roll);
-          setTimeout(() => {
-            const submitBtn = document.getElementById('loginFormSubmitButton');
-            const form = document.getElementById('loginForm');
-            if (submitBtn) submitBtn.click();
-            else if (form) form.submit();
-          }, 800);
+          await new Promise(r => setTimeout(r, 400));
+          updateStatus('Sessions cleared! Submitting login...', false);
+          const submitBtn = document.getElementById('loginFormSubmitButton');
+          const form = document.getElementById('loginForm') || document.querySelector('form[action*="auth.htm"]');
+          if (submitBtn) {
+            submitBtn.classList.remove('d-none', 'hidden');
+            submitBtn.removeAttribute('disabled');
+            submitBtn.disabled = false;
+            submitBtn.click();
+          } else if (form) {
+            form.submit();
+          }
         }
-      } else if (checkCount >= 10) {
+      } else if (checkCount >= 20) {
         clearInterval(interval);
       }
-    }, 500);
+    }, 400);
   }
 
   // Listen for messages from background or popup

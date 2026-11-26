@@ -8,20 +8,31 @@
   const ERP_SUBJECT_KEYWORD = "OTP for Sign In in ERP Portal of IIT Kharagpur";
   let isListeningForOtp = false;
   let otpRequestedTime = 0;
+  const staleOtps = new Set();
+  let domObserver = null;
+
+  function recordStaleOtps() {
+    staleOtps.clear();
+    const rows = document.querySelectorAll('tr.zA, div[role="main"] div[role="listitem"], .y6, .y2, .Row, .MsgList');
+    rows.forEach((row) => {
+      const text = row.innerText || '';
+      if (text.includes("OTP for Sign In") || (text.includes("OTP") && (text.includes("ERP") || text.includes("Sign In")))) {
+        const otp = parseOtpFromText(text);
+        if (otp) staleOtps.add(otp);
+      }
+    });
+    if (staleOtps.size > 0) {
+      console.log('[MailReader] Baseline stale OTPs in view:', Array.from(staleOtps));
+    }
+  }
 
   // Listen for instructions from the background worker or popup
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'START_OTP_WATCH') {
-      chrome.storage.local.get(['googleOAuth'], (res) => {
-        // If Google OAuth API is enabled, let background handle it with strict baseline IDs
-        if (res.googleOAuth && (res.googleOAuth.accessToken || res.googleOAuth.refreshToken)) {
-          console.log('[MailReader] Google OAuth API is active. Skipping DOM mail scraper.');
-          return;
-        }
-        isListeningForOtp = true;
-        otpRequestedTime = message.timestamp || Date.now();
-        scanForOtp();
-      });
+      isListeningForOtp = true;
+      otpRequestedTime = message.timestamp || Date.now();
+      recordStaleOtps();
+      scanForOtp();
       sendResponse({ status: 'watching' });
       return true;
     }
@@ -41,20 +52,8 @@
 
     // Check if the ERP OTP subject is present on the page
     if (!pageText.includes("OTP for Sign In in ERP Portal") &&
-        !pageText.includes("IIT Kharagpur") &&
-        !pageText.includes("ERP Portal")) {
+        !(pageText.includes("OTP") && (pageText.includes("ERP") || pageText.includes("IIT Kharagpur")))) {
       return null;
-    }
-
-    // Try finding specific email row or preview containers
-    // 1. Gmail selectors
-    const gmailRows = document.querySelectorAll('tr.zA, div[role="main"] div[role="listitem"], .y6, .y2');
-    for (const row of gmailRows) {
-      const text = row.innerText || '';
-      if (text.includes("OTP for Sign In") || text.includes("IIT Kharagpur")) {
-        const otp = parseOtpFromText(text);
-        if (otp) return otp;
-      }
     }
 
     // Helper to verify if row text is genuinely an ERP OTP email
@@ -64,14 +63,13 @@
         (text.includes("OTP") && (text.includes("ERP") || text.includes("Sign In")));
     };
 
-    // Try finding specific email row or preview containers
     // 1. Gmail selectors
     const gmailRows = document.querySelectorAll('tr.zA, div[role="main"] div[role="listitem"], .y6, .y2');
     for (const row of gmailRows) {
       const text = row.innerText || '';
       if (isErpOtpRow(text)) {
         const otp = parseOtpFromText(text);
-        if (otp) return otp;
+        if (otp && !staleOtps.has(otp)) return otp;
       }
     }
 
@@ -81,7 +79,7 @@
       const text = row.innerText || '';
       if (isErpOtpRow(text)) {
         const otp = parseOtpFromText(text);
-        if (otp) return otp;
+        if (otp && !staleOtps.has(otp)) return otp;
       }
     }
 
@@ -104,7 +102,7 @@
       const text = currentNode.parentElement ? currentNode.parentElement.innerText : currentNode.nodeValue;
       if (isErpOtpRow(text)) {
         const otp = parseOtpFromText(text);
-        if (otp) return otp;
+        if (otp && !staleOtps.has(otp)) return otp;
       }
     }
 
@@ -152,19 +150,47 @@
    */
   function scanForOtp() {
     let attempts = 0;
-    const maxAttempts = 30; // 30 * 1.5s = 45s
+    const maxAttempts = 40; // 40 * 1.2s = 48s
 
-    const interval = setInterval(() => {
-      attempts++;
+    const checkNow = () => {
+      if (!isListeningForOtp) return false;
       const otp = extractOtpFromPage();
       if (otp) {
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
+        if (domObserver) {
+          domObserver.disconnect();
+          domObserver = null;
+        }
         isListeningForOtp = false;
         notifyOtpFound(otp);
-      } else if (attempts >= maxAttempts || !isListeningForOtp) {
-        clearInterval(interval);
+        return true;
       }
-    }, 1500);
+      return false;
+    };
+
+    // Immediate check
+    if (checkNow()) return;
+
+    // Interval poller
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkNow() || attempts >= maxAttempts || !isListeningForOtp) {
+        clearInterval(interval);
+        if (domObserver) {
+          domObserver.disconnect();
+          domObserver = null;
+        }
+      }
+    }, 1200);
+
+    // Dynamic DOM observer for live email arrival in Gmail inbox
+    try {
+      if (domObserver) domObserver.disconnect();
+      domObserver = new MutationObserver(() => {
+        checkNow();
+      });
+      domObserver.observe(document.body, { childList: true, subtree: true });
+    } catch {}
   }
 
   /**

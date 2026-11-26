@@ -292,13 +292,18 @@ const ErpApi = {
   async clearAllSessions(rollNumber) {
     const cleanRoll = rollNumber.trim().toUpperCase();
     try {
+      const body = new URLSearchParams({
+        user_code: cleanRoll,
+        user_id: cleanRoll,
+        roll_no: cleanRoll
+      });
       const res = await fetch(this.CLEAR_ALL_SESSIONS_URL, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: `user_code=${encodeURIComponent(cleanRoll)}`
+        body: body.toString()
       });
       return res.ok;
     } catch (err) {
