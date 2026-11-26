@@ -42,11 +42,31 @@
         text.includes('sign out') ||
         onclick.includes('logout')
       ) {
-        console.log('[ERP Content] User clicked logout. Flagging erp_just_logged_out.');
-        sessionStorage.setItem('erp_just_logged_out', 'true');
+        console.log('[ERP Content] User clicked logout. Clearing session state...');
+        sessionStorage.clear();
+        chrome.storage.local.remove(['erp_latest_otp', 'erp_active_login']);
       }
     }
   }, true);
+
+  /**
+   * Attaches input, change, and paste listeners to ERP page OTP inputs
+   */
+  function attachPageOtpListener() {
+    const pageOtpInputs = document.querySelectorAll('#email_otp1, input[name="email_otp"], input[id*="email_otp"]');
+    pageOtpInputs.forEach((input) => {
+      ['input', 'change', 'paste'].forEach((evtType) => {
+        input.addEventListener(evtType, (e) => {
+          setTimeout(() => {
+            const val = (e.target.value || '').replace(/\D/g, '');
+            if (val.length === 6 && val !== '721302') {
+              handleOtpFound(val);
+            }
+          }, 30);
+        });
+      });
+    });
+  }
 
   /**
    * Checks if the user reached this page via a logout action
@@ -81,6 +101,15 @@
   });
 
   function init(creds, isAutoLoginEnabled) {
+    // If landed on logout page, immediately redirect to login page so login cycle continues
+    if (window.location.href.includes('logout.htm') || window.location.pathname.includes('logout')) {
+      console.log('[ERP Content] On logout page. Navigating back to login page...');
+      setTimeout(() => {
+        window.location.href = window.location.origin + '/IIT_ERP3/';
+      }, 500);
+      return;
+    }
+
     const userIdInput = document.getElementById('user_id');
     if (!userIdInput) {
       return;
@@ -109,15 +138,7 @@
       sessionStorage.setItem('erp_session_token', urlToken);
     }
 
-    // 1. If user explicitly logged out, PAUSE auto-login so they aren't trapped in a loop
-    if (isLogoutPage()) {
-      console.log('ERP 1-Click Login: User logged out. Auto-login paused.');
-      updateStatus('You have logged out of ERP.', false, false);
-      showManualLoginButton();
-      return;
-    }
-
-    // 2. If General Behavior "Auto-Login on Page Visit" is disabled (turned off)
+    // 1. If General Behavior "Auto-Login on Page Visit" is disabled (turned off)
     if (!isAutoLoginEnabled) {
       console.log('ERP 1-Click Login: Auto-login is disabled in General Behavior settings.');
       updateStatus('Auto-login disabled in General Behavior.', false, false);
@@ -275,17 +296,6 @@
     }
 
     // Direct listener on native ERP page OTP input as well
-    const attachPageOtpListener = () => {
-      const pageOtpInputs = document.querySelectorAll('#email_otp1, input[name="email_otp"], input[id*="email_otp"]');
-      pageOtpInputs.forEach((input) => {
-        input.addEventListener('input', (e) => {
-          const val = e.target.value.replace(/\D/g, '');
-          if (val.length === 6 && val !== '721302') {
-            handleOtpFound(val);
-          }
-        });
-      });
-    };
     attachPageOtpListener();
 
     // Clear sessions link
@@ -319,8 +329,23 @@
    */
   async function startInPageLogin(creds) {
     try {
+      // 0. Reset all stale state from previous sessions
+      isSubmitting = false;
+      sessionStorage.removeItem('erp_otp_requested_time');
+      sessionStorage.removeItem('erp_just_logged_out');
+      await chrome.storage.local.remove(['erp_latest_otp', 'erp_active_login']);
+
+      // Reset DOM OTP fields so no old OTP remains
+      if (otpInputElem) otpInputElem.value = '';
+      const existingOtpInputs = document.querySelectorAll('#email_otp1, input[name="email_otp"], input[id*="email_otp"]');
+      existingOtpInputs.forEach((el) => {
+        el.value = '';
+        el.setAttribute('value', '');
+      });
+
       updateStatus('Checking active sessions...');
       await ErpApi.clearAllSessions(creds.rollNumber);
+      await new Promise(r => setTimeout(r, 200));
 
       updateStatus('Filling Roll Number...');
 
@@ -403,7 +428,7 @@
       // 7. Check if OTP was already requested recently or cooldown is active on page
       const getOtpBtn = document.getElementById('getotp');
       const lastRequested = parseInt(sessionStorage.getItem('erp_otp_requested_time') || '0', 10);
-      const isCooldownActive = (Date.now() - lastRequested < 55000) || (getOtpBtn && getOtpBtn.innerText.includes('Resend ('));
+      const isCooldownActive = (lastRequested > 0 && Date.now() - lastRequested < 55000) || (getOtpBtn && getOtpBtn.innerText.includes('Resend ('));
 
       let baselineId = null;
 
@@ -422,6 +447,13 @@
         // Request OTP from ERP
         updateStatus('Requesting OTP from ERP...');
         sessionStorage.setItem('erp_otp_requested_time', Date.now().toString());
+
+        // Reveal OTP input immediately so user can manually type or paste
+        if (otpSectionElem) {
+          otpSectionElem.style.display = 'block';
+          if (otpInputElem) otpInputElem.focus();
+        }
+
         await triggerOtpRequest(creds.rollNumber, password, answer);
       }
 
@@ -434,7 +466,15 @@
       startCountdown();
       watchClipboardForOtp();
 
-      // 9. Notify background to start watching Gmail with baseline
+      // 9. Flag active login state in storage and notify background worker
+      chrome.storage.local.set({
+        erp_active_login: {
+          status: 'waiting_for_otp',
+          requestedAt: Date.now(),
+          rollNumber: creds.rollNumber
+        }
+      });
+
       chrome.runtime.sendMessage({
         action: 'START_OTP_WATCH',
         baselineId: baselineId,
@@ -444,6 +484,10 @@
     } catch (err) {
       console.error('In-page login error:', err);
       updateStatus(`Error: ${err.message}`, true);
+      // Ensure manual OTP input section is visible even on error
+      if (otpSectionElem) {
+        otpSectionElem.style.display = 'block';
+      }
     }
   }
 
@@ -591,6 +635,7 @@
         emailOtpInput.readOnly = false;
         emailOtpInput.removeAttribute('readonly');
       }
+      attachPageOtpListener();
       if (submitBtn) {
         submitBtn.classList.remove('d-none', 'hidden');
         submitBtn.disabled = false;
@@ -639,9 +684,23 @@
     const countdownElem = document.getElementById('erp-countdown');
     if (countdownTimer) clearInterval(countdownTimer);
 
-    countdownTimer = setInterval(() => {
+    countdownTimer = setInterval(async () => {
       seconds--;
       if (countdownElem) countdownElem.innerText = seconds;
+
+      // Continuously poll shared storage in case background/mail-reader deposited the OTP
+      if (!isSubmitting) {
+        try {
+          const res = await chrome.storage.local.get(['erp_latest_otp']);
+          if (res.erp_latest_otp && res.erp_latest_otp.otp) {
+            const age = Date.now() - (res.erp_latest_otp.timestamp || 0);
+            if (age < 120000) {
+              handleOtpFound(res.erp_latest_otp.otp);
+            }
+          }
+        } catch {}
+      }
+
       if (seconds <= 0) {
         clearInterval(countdownTimer);
         sessionStorage.removeItem('erp_otp_requested_time');
@@ -651,7 +710,7 @@
   }
 
   /**
-   * Silently monitors clipboard for 6-digit OTP copied by the user
+   * Silently monitors clipboard and window focus for 6-digit OTP copied by the user
    */
   async function watchClipboardForOtp() {
     try {
@@ -668,24 +727,32 @@
       }
     } catch {}
 
-    const interval = setInterval(async () => {
-      if (isSubmitting) {
-        clearInterval(interval);
-        return;
-      }
+    const checkClipboardNow = async () => {
+      if (isSubmitting) return;
       try {
-        if (document.hasFocus()) {
-          const text = await navigator.clipboard.readText();
-          if (text && text !== initialClipboard) {
-            const match = text.match(/\b\d{6}\b/);
-            if (match && match[0] !== '721302' && !isSubmitting) {
-              clearInterval(interval);
-              handleOtpFound(match[0]);
-            }
+        const text = await navigator.clipboard.readText();
+        if (text && text !== initialClipboard) {
+          const match = text.match(/\b\d{6}\b/);
+          if (match && match[0] !== '721302' && !isSubmitting) {
+            handleOtpFound(match[0]);
           }
         }
       } catch {}
-    }, 1500);
+    };
+
+    // Instant check as soon as user switches back to this tab
+    window.addEventListener('focus', checkClipboardNow);
+
+    const interval = setInterval(async () => {
+      if (isSubmitting) {
+        clearInterval(interval);
+        window.removeEventListener('focus', checkClipboardNow);
+        return;
+      }
+      if (document.hasFocus()) {
+        await checkClipboardNow();
+      }
+    }, 1200);
   }
 
   /**
@@ -887,9 +954,16 @@
     }
   });
 
-  // Listen for storage changes (e.g. toggling Auto-login in Options or Popup)
+  // Listen for storage changes (e.g. toggling Auto-login in Options or Popup, or instant OTP relay)
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
+      if (changes.erp_latest_otp && changes.erp_latest_otp.newValue) {
+        const item = changes.erp_latest_otp.newValue;
+        if (item && item.otp && (Date.now() - (item.timestamp || 0) < 120000)) {
+          handleOtpFound(item.otp);
+        }
+      }
+
       if (changes.autoLogin !== undefined || changes.authCredentials) {
         chrome.storage.local.get(['authCredentials', 'autoLogin'], (res) => {
           const enabled = res.autoLogin !== undefined ? res.autoLogin : (res.authCredentials && res.authCredentials.autoLogin !== false);

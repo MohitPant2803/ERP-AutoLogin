@@ -137,13 +137,24 @@ function broadcastOtpFound(otp, source = 'automated-listener') {
     activeOtpWatchTimer = null;
   }
 
-  // 1. Resolve pending background promise if active
+  // 1. Write to shared storage for instant cross-tab pickup
+  chrome.storage.local.set({
+    erp_latest_otp: {
+      otp: cleanOtp,
+      timestamp: Date.now(),
+      source: source
+    }
+  });
+
+  // 2. Resolve pending background promise if active
   if (otpResolver) {
-    otpResolver(otp);
+    otpResolver(cleanOtp);
   }
 
-  // 2. Deliver directly to the active ERP tab if known
+  // 2. Deliver directly to active ERP tabs without duplicate messaging
+  const contactedTabIds = new Set();
   if (activeErpTabId) {
+    contactedTabIds.add(activeErpTabId);
     chrome.tabs.sendMessage(activeErpTabId, {
       action: 'OTP_FOUND',
       otp: otp,
@@ -151,11 +162,12 @@ function broadcastOtpFound(otp, source = 'automated-listener') {
     }).catch(() => {});
   }
 
-  // 3. Relay to all open tabs containing erp.iitkgp.ac.in (matches with or without port :443)
+  // 3. Relay to any other open tabs containing erp.iitkgp.ac.in
   chrome.tabs.query({}, (tabs) => {
     if (!tabs || !Array.isArray(tabs)) return;
     tabs.forEach((t) => {
-      if (t.url && (t.url.includes('erp.iitkgp.ac.in') || t.url.includes('SSOAdministration') || t.url.includes('IIT_ERP3'))) {
+      if (t.id && !contactedTabIds.has(t.id) && t.url && (t.url.includes('erp.iitkgp.ac.in') || t.url.includes('SSOAdministration') || t.url.includes('IIT_ERP3'))) {
+        contactedTabIds.add(t.id);
         chrome.tabs.sendMessage(t.id, {
           action: 'OTP_FOUND',
           otp: otp,
@@ -200,6 +212,18 @@ function startAutonomousOtpWatcher(preferredAccount = 0, baselineMessageId = nul
   // 2. Continuous poller
   activeOtpWatchTimer = setInterval(async () => {
     elapsedSeconds += 1.5;
+
+    // Continuously notify open/new mail tabs in case they were opened after start
+    chrome.tabs.query({ url: ['*://mail.google.com/*', '*://*.iitkgpmail.iitkgp.ac.in/*', '*://iitkgpmail.iitkgp.ac.in/*'] }, (tabs) => {
+      if (tabs) {
+        tabs.forEach((tab) => {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'START_OTP_WATCH',
+            timestamp: startTime
+          }).catch(() => {});
+        });
+      }
+    });
 
     // Check if Google OAuth is configured and active
     let hasOAuth = false;
